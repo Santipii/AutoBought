@@ -1,13 +1,13 @@
 import { useState } from "react";
 import Navbar from "./Navbar";
-import { confirmarCompra } from "./api";
+import { confirmarCompra, obtenerDirecciones, obtenerMetodosPago } from "./api";
 import { useCart } from "./context/CartContext";
 import SugerenciasCarrito from "./SugerenciasCarrito";
 
 
 export default function Carrito({
   onHome, onCatalogo, onLogin, onMarcas, onCarrito, onFavoritos,
-  cantidadFavoritos, onDetalle,
+  cantidadFavoritos, onDetalle, onDirecciones, onMetodosPago,
 }) {
   const { cart: productos, updateQuantity, removeFromCart, clearCart, total, cargarCarrito } = useCart();
 
@@ -21,12 +21,48 @@ export default function Carrito({
   const [enviando, setEnviando] = useState(false);
   const [pedido, setPedido] = useState(null);
   const [errorCompra, setErrorCompra] = useState("");
+  const [direcciones, setDirecciones] = useState([]);
+  const [metodosPago, setMetodosPago] = useState([]);
+  const [direccionId, setDireccionId] = useState("");
+  const [metodoPagoId, setMetodoPagoId] = useState("");
+  const [cargandoDatos, setCargandoDatos] = useState(false);
 
-  const abrirConfirmacion = () => {
+  // La principal, o la primera que se pueda usar (las vencidas no).
+  const idPrincipal = (lista) => {
+    const usables = lista.filter((item) => !item.vencida);
+    const principal = usables.find((item) => item.principal) ?? usables[0];
+    return principal ? String(principal.id) : "";
+  };
+
+  // Al abrir se traen las direcciones y tarjetas del perfil, con la
+  // principal de cada una preseleccionada.
+  const abrirConfirmacion = async () => {
     setPedido(null);
     setErrorCompra("");
     setConfirmacionAbierta(true);
+    setCargandoDatos(true);
+    try {
+      const [listaDirecciones, listaMetodos] = await Promise.all([
+        obtenerDirecciones(),
+        obtenerMetodosPago(),
+      ]);
+      setDirecciones(listaDirecciones);
+      setMetodosPago(listaMetodos);
+      setDireccionId(idPrincipal(listaDirecciones));
+      setMetodoPagoId(idPrincipal(listaMetodos));
+    } catch (error) {
+      setErrorCompra(error.message || "No pudimos cargar tus datos de envío y pago.");
+    } finally {
+      setCargandoDatos(false);
+    }
   };
+
+  const textoDireccion = (d) =>
+    `${d.calle} ${d.numero}${d.apartamento ? ` apto ${d.apartamento}` : ""}, ${d.ciudad}`;
+  const textoMetodoPago = (m) =>
+    `${m.tipo} •••• ${m.numero}${m.vencida ? " (vencida)" : ""}`;
+  const hayTarjetaVigente = metodosPago.some((m) => !m.vencida);
+  const puedeConfirmar = !enviando && !cargandoDatos && direccionId !== "" && metodoPagoId !== "";
 
   const cerrarConfirmacion = () => {
     if (enviando) return;
@@ -40,7 +76,10 @@ export default function Carrito({
     setEnviando(true);
     setErrorCompra("");
     try {
-      const nuevoPedido = await confirmarCompra();
+      const nuevoPedido = await confirmarCompra({
+        direccionId: Number(direccionId),
+        metodoPagoId: Number(metodoPagoId),
+      });
       setPedido(nuevoPedido);
       await cargarCarrito();
     } catch (error) {
@@ -51,7 +90,7 @@ export default function Carrito({
   };
 
   const resumen = (
-    <aside className="bg-white border border-gray-200 rounded-xl p-5 h-fit shadow-sm">
+    <aside className="bg-white border border-gray-200 rounded-xl p-5 h-fit shadow-xs">
       <h2 className="text-[13px] font-black">Resumen del pedido</h2>
       <div className="mt-6 space-y-4">
         <div className="flex justify-between text-[10px]"><span className="text-gray-500">Subtotal</span><span className="font-bold">{precio(subtotal)}</span></div>
@@ -97,6 +136,50 @@ export default function Carrito({
                   <span className="text-[9px] text-gray-400">TOTAL</span>
                   <span className="text-xl font-black text-orange-500">{precio(totalFinal)}</span>
                 </div>
+                {cargandoDatos ? (
+                  <p role="status" className="mt-4 text-[10px] text-gray-500">Cargando tus datos de envío y pago...</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label htmlFor="direccion-envio" className="block text-[9px] font-black text-gray-500">DIRECCIÓN DE ENVÍO</label>
+                      {direcciones.length > 0 ? (
+                        <select id="direccion-envio" value={direccionId} onChange={(e) => setDireccionId(e.target.value)}
+                          className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-[10px] bg-white outline-hidden focus:border-orange-500">
+                          {direcciones.map((d) => (
+                            <option key={d.id} value={String(d.id)}>{textoDireccion(d)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="mt-1 text-[10px] text-gray-500">
+                          No tenés direcciones guardadas.{" "}
+                          <button type="button" onClick={onDirecciones} className="text-orange-500 font-bold hover:underline">
+                            Agregar una dirección
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label htmlFor="metodo-pago" className="block text-[9px] font-black text-gray-500">MÉTODO DE PAGO</label>
+                      {hayTarjetaVigente ? (
+                        <select id="metodo-pago" value={metodoPagoId} onChange={(e) => setMetodoPagoId(e.target.value)}
+                          className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-[10px] bg-white outline-hidden focus:border-orange-500">
+                          {metodosPago.map((m) => (
+                            <option key={m.id} value={String(m.id)} disabled={m.vencida}>{textoMetodoPago(m)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="mt-1 text-[10px] text-gray-500">
+                          {metodosPago.length > 0
+                            ? "Tus tarjetas guardadas están vencidas."
+                            : "No tenés tarjetas guardadas."}{" "}
+                          <button type="button" onClick={onMetodosPago} className="text-orange-500 font-bold hover:underline">
+                            Agregar una tarjeta
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {errorCompra && (
                   <p role="alert" className="mt-4 text-[10px] text-red-600 font-bold">{errorCompra}</p>
                 )}
@@ -105,7 +188,7 @@ export default function Carrito({
                     className="flex-1 border border-gray-200 rounded-md py-3 text-[10px] font-black text-gray-500 hover:border-orange-500 hover:text-orange-500 disabled:opacity-40">
                     CANCELAR
                   </button>
-                  <button onClick={confirmar} disabled={enviando}
+                  <button onClick={confirmar} disabled={!puedeConfirmar}
                     className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md py-3 text-[10px] font-black disabled:opacity-40">
                     {enviando ? "CONFIRMANDO..." : "CONFIRMAR COMPRA"}
                   </button>
@@ -133,7 +216,7 @@ export default function Carrito({
 
         {productos.length === 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_310px] gap-6">
-            <div className="bg-white border border-gray-200 rounded-xl p-16 text-center shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-xl p-16 text-center shadow-xs">
               <div className="text-5xl mb-4">🛒</div>
               <h2 className="text-xl font-black">Tu carrito está vacío</h2>
               <p className="text-[10px] text-gray-400 mt-2">Agregá repuestos desde el catálogo para verlos acá.</p>
@@ -157,8 +240,8 @@ export default function Carrito({
               {productos.map((producto) => {
                 const alcanzoMaximo = producto.cantidad >= producto.stock;
                 return (
-                  <div key={producto.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col md:flex-row gap-4 shadow-sm">
-                    <button onClick={() => onDetalle(producto)} className="w-full md:w-[150px] h-[115px] rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  <div key={producto.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col md:flex-row gap-4 shadow-xs">
+                    <button onClick={() => onDetalle(producto)} className="w-full md:w-[150px] h-[115px] rounded-lg overflow-hidden bg-gray-100 shrink-0">
                       <img src={producto.imagen} alt={producto.nombre} className="w-full h-full object-cover" />
                     </button>
 

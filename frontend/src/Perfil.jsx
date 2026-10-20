@@ -3,6 +3,8 @@ import Navbar from "./Navbar";
 import { useCart } from "./context/CartContext";
 import { actualizarPerfil, obtenerPerfil } from "./api";
 import CambiarPassword from "./CambiarPassword";
+import { MENSAJE_TELEFONO, normalizarTelefonoUY } from "./telefono";
+import { limpiar, validarNombrePersona } from "./validaciones";
 
 const nombreCompleto = (usuario) =>
   `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim();
@@ -97,6 +99,19 @@ export default function Perfil({
   };
 
   const guardarCambios = async () => {
+    // El teléfono se puede cambiar pero no borrar.
+    const errorDatos =
+      validarNombrePersona(datos.nombre) ||
+      (!limpiar(datos.telefono)
+        ? "Ingresá tu teléfono."
+        : normalizarTelefonoUY(datos.telefono)
+          ? null
+          : MENSAJE_TELEFONO);
+    if (errorDatos) {
+      setError(errorDatos);
+      return;
+    }
+
     setGuardando(true);
     setError("");
 
@@ -112,7 +127,7 @@ export default function Perfil({
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-gradient-to-b from-black to-[#492202]">
+    <div className="min-h-screen flex flex-col font-sans bg-linear-to-b from-black to-[#492202]">
 
       {/* =====================================================
           NAVBAR
@@ -170,7 +185,7 @@ export default function Perfil({
                   SELECTOR LATERAL
               ================================================== */}
 
-              <aside className="w-full md:w-[190px] flex-shrink-0">
+              <aside className="w-full md:w-[190px] shrink-0">
 
                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-2">
 
@@ -294,7 +309,8 @@ export default function Perfil({
                           onChange={(e) =>
                             cambiarDato("nombre", e.target.value)
                           }
-                          className="w-full mt-2 h-11 px-4 bg-white border border-gray-200 rounded-md text-[10px] text-gray-700 outline-none focus:border-orange-500 transition"
+                          maxLength={120}
+                          className="w-full mt-2 h-11 px-4 bg-white border border-gray-200 rounded-md text-[10px] text-gray-700 outline-hidden focus:border-orange-500 transition"
                         />
                       ) : (
                         <div className="mt-2 h-11 px-4 flex items-center bg-gray-50 border border-gray-200 rounded-md text-[10px] text-gray-700">
@@ -334,7 +350,7 @@ export default function Perfil({
                             cambiarDato("telefono", e.target.value)
                           }
                           placeholder="Ej. 099 123 456"
-                          className="w-full mt-2 h-11 px-4 bg-white border border-gray-200 rounded-md text-[10px] text-gray-700 outline-none focus:border-orange-500 transition"
+                          className="w-full mt-2 h-11 px-4 bg-white border border-gray-200 rounded-md text-[10px] text-gray-700 outline-hidden focus:border-orange-500 transition"
                         />
                       ) : (
                         <div className="mt-2 h-11 px-4 flex items-center bg-gray-50 border border-gray-200 rounded-md text-[10px] text-gray-700">
@@ -421,7 +437,7 @@ export default function Perfil({
                   </div>
                 )}
 
-                {!editando && <CambiarPassword />}
+                {!editando && <CambiarPassword email={usuario.email} />}
 
               </section>
 

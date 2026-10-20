@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Navbar from "./Navbar";
+import ConfirmacionAgregarCarrito from "./ConfirmacionAgregarCarrito";
 import { useCart } from "./context/CartContext";
 import { useVehicle } from "./context/VehicleContext";
 
@@ -15,11 +16,12 @@ export default function DetalleProducto({
   onAlternarFavorito,
   esFavorito,
 }) {
-  const { addToCart } = useCart();
+  const { addToCart, deshacerAgregado } = useCart();
   const { vehiculoActivo: filtrosVehiculo } = useVehicle();
   const [cantidad, setCantidad] = useState(1);
   const [imagenActiva, setImagenActiva] = useState(0);
   const [pestana, setPestana] = useState("descripcion");
+  const [productoAgregado, setProductoAgregado] = useState(null);
 
   // DEUDA CONOCIDA (diferida): si no llega `producto` (refresh o link
   // compartido a /producto, donde el estado de App ya está vacío) se
@@ -64,10 +66,15 @@ export default function DetalleProducto({
 
   const sinStock = productoActual.stock === 0;
 
-  const agregar = () => {
+  const agregar = async () => {
     if (sinStock) return;
-    addToCart(productoActual, cantidad);
+
+    const cantidadPedida = cantidad;
+    const agregado = await addToCart(productoActual, cantidadPedida);
     setCantidad(1);
+    if (agregado) {
+      setProductoAgregado({ ...productoActual, cantidadAgregada: cantidadPedida });
+    }
   };
 
   const tabs = [
@@ -80,6 +87,15 @@ export default function DetalleProducto({
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
+      <ConfirmacionAgregarCarrito
+        producto={productoAgregado}
+        onDeshacer={(item) => deshacerAgregado(item.id, item.cantidadAgregada)}
+        onCerrar={() => setProductoAgregado(null)}
+        onVerCarrito={() => {
+          setProductoAgregado(null);
+          onCarrito();
+        }}
+      />
       <Navbar paginaActual="detalle" onHome={onHome} onCatalogo={onCatalogo} onLogin={onLogin}
         onMarcas={onMarcas} onCarrito={onCarrito} onFavoritos={onFavoritos}
         cantidadFavoritos={cantidadFavoritos} />
@@ -115,7 +131,7 @@ export default function DetalleProducto({
 
             <div>
               <p className="text-orange-500 text-[11px] font-black">{productoActual.marcaPrincipal ?? productoActual.marca}</p>
-              <h1 className="text-2xl md:text-3xl font-black mt-2 leading-tight">{productoActual.nombre}</h1>
+              <h1 className="text-2xl md:text-3xl font-black mt-2 leading-tight md:leading-9">{productoActual.nombre}</h1>
               <p className="text-[10px] text-gray-400 mt-2">Código: {productoActual.codigo}</p>
               <p className="text-3xl font-black text-orange-500 mt-5">${productoActual.precio.toLocaleString("es-UY")}</p>
               {sinStock ? (
@@ -159,7 +175,7 @@ export default function DetalleProducto({
             </div>
 
             <div className="space-y-3">
-              <div className="border border-gray-100 rounded-xl shadow-sm p-5">
+              <div className="border border-gray-100 rounded-xl shadow-xs p-5">
                 <p className="text-[10px] font-black">🛡 Garantía</p>
                 <p className="text-[9px] text-gray-500 mt-1">{productoActual.garantia || "Consultar garantía."}</p>
                 <div className="border-t my-4" />
