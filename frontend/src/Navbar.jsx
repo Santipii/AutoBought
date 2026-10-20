@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useCart } from "./context/CartContext";
+import logo from "./assets/logo.png";
 
 export default function Navbar({
   paginaActual,
@@ -97,7 +98,7 @@ export default function Navbar({
         className="flex items-center cursor-pointer"
       >
         <img
-          src="/src/assets/logo.png"
+          src={logo}
           alt="AutoBought"
           className="h-10 w-auto object-contain"
         />
