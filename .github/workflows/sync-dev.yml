@@ -1,9 +1,9 @@
 
-name: Sync branches with upstream
+name: Sync dev with upstream
 
 on:
   schedule:
-    - cron: "17 8 * * *"
+    - cron: "37 8 * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,19 +16,15 @@ jobs:
       - name: Checkout fork
         uses: actions/checkout@v4
         with:
+          ref: dev
           fetch-depth: 0
 
-      - name: Sync main and dev
+      - name: Sync dev
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git remote add upstream https://github.com/JoaquinRodriguez07/AutoBought.git
-          git fetch origin
-          git fetch upstream main dev
-
-          for branch in main dev; do
-            git checkout "$branch"
-            git merge --no-edit "upstream/$branch"
-            git push origin "$branch"
-          done
+          git fetch upstream dev
+          git checkout dev
+          git merge --no-edit upstream/dev
+          git push origin dev
